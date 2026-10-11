@@ -35,4 +35,26 @@ class DatabaseTest {
             database.close();
         }
     }
+
+    @Test
+    void dataPersistsAfterReopening() throws IOException {
+        Path databaseFile = tempDir.resolve("persistence.db");
+
+        Database firstDatabase = new Database(databaseFile.toString());
+
+        try {
+            firstDatabase.set("name", "Mujah");
+        } finally {
+            firstDatabase.close();
+        }
+
+        Database secondDatabase = new Database(databaseFile.toString());
+
+        try {
+            assertEquals("Mujah", secondDatabase.get("name"));
+            assertTrue(secondDatabase.exists("name"));
+        } finally {
+            secondDatabase.close();
+        }
+    }
 }
