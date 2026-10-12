@@ -57,4 +57,43 @@ class DatabaseTest {
             secondDatabase.close();
         }
     }
+
+    @Test
+    void incrementAndDecrementWork() throws IOException {
+        Path databaseFile = tempDir.resolve("counters.db");
+        Database database = new Database(databaseFile.toString());
+
+        try {
+            assertEquals(1, database.increment("visits"));
+            assertEquals(2, database.increment("visits"));
+            assertEquals(1, database.decrement("visits"));
+            assertEquals("1", database.get("visits"));
+        } finally {
+            database.close();
+        }
+    }
+
+    @Test
+    void countAndKeyPatternsWork() throws IOException {
+        Path databaseFile = tempDir.resolve("keys.db");
+        Database database = new Database(databaseFile.toString());
+
+        try {
+            database.set("user:1", "Ibrahim");
+            database.set("user:2", "Mariyam");
+            database.set("post:1", "Mayank");
+
+            assertEquals(3, database.count());
+            assertEquals(2, database.keys("user:*").size());
+            assertTrue(database.keys("user:*").contains("user:1"));
+            assertTrue(database.keys("user:*").contains("user:2"));
+
+            database.delete("user:1");
+
+            assertEquals(2, database.count());
+            assertFalse(database.keys("user:*").contains("user:1"));
+        } finally {
+            database.close();
+        }
+    }
 }
