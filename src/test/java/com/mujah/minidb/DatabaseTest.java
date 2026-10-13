@@ -3,12 +3,15 @@ package com.mujah.minidb;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.mujah.minidb.Database;
+
 import java.io.IOException;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DatabaseTest {
@@ -92,6 +95,31 @@ class DatabaseTest {
 
             assertEquals(2, database.count());
             assertFalse(database.keys("user:*").contains("user:1"));
+        } finally {
+            database.close();
+        }
+    }
+
+    @Test
+    void handlesMissingKeysAndInvalidCounters() throws IOException {
+        Path databaseFile = tempDir.resolve("edge-cases.db");
+        Database database = new Database(databaseFile.toString());
+
+        try {
+            assertNull(database.get("missing"));
+            assertFalse(database.exists("missing"));
+            assertEquals(0, database.count());
+
+            database.set("name", "Mujah");
+
+            assertThrows(NumberFormatException.class, () -> {
+                database.increment("name");
+            });
+
+            assertTrue(database.keys("city:*").isEmpty());
+
+            database.delete("does-not-exist");
+            assertEquals(1, database.count());
         } finally {
             database.close();
         }
