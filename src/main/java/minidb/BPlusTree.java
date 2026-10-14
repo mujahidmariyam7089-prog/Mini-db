@@ -7,6 +7,7 @@ public class BPlusTree {
 
     private static final int ORDER = 4;
     private static final int MAX_KEYS = ORDER - 1;
+    private static final int MIN_KEYS = 1;
 
     private BPlusTreeNode root;
     private int size;
@@ -62,7 +63,7 @@ public class BPlusTree {
             node.values.add(index, value);
             size++;
         } else {
-            int index = findKeyIndex(node.keys, key);
+            int index = findChildIndex(node.keys, key);
             Split split = insert(node.children.get(index), key, value);
 
             if (split == null) {
@@ -118,7 +119,7 @@ public class BPlusTree {
         BPlusTreeNode node = root;
 
         while (!node.leaf) {
-            int index = findKeyIndex(node.keys, key);
+            int index = findChildIndex(node.keys, key);
             node = node.children.get(index);
         }
 
@@ -130,6 +131,17 @@ public class BPlusTree {
 
         while (index < keys.size()
                 && keys.get(index).compareTo(key) < 0) {
+            index++;
+        }
+
+        return index;
+    }
+
+    private int findChildIndex(List<String> keys, String key) {
+        int index = 0;
+
+        while (index < keys.size()
+                && keys.get(index).compareTo(key) <= 0) {
             index++;
         }
 
@@ -159,14 +171,131 @@ public class BPlusTree {
     }
 
     public void remove(String key) {
-        BPlusTreeNode leaf = findLeaf(key);
-        int index = findKeyIndex(leaf.keys, key);
+        delete(root, key);
 
-        if (index < leaf.keys.size()
-                && leaf.keys.get(index).equals(key)) {
-            leaf.keys.remove(index);
-            leaf.values.remove(index);
-            size--;
+        if (!root.leaf && root.keys.isEmpty()) {
+            root = root.children.get(0);
+        }
+    }
+
+    private boolean delete(BPlusTreeNode node, String key) {
+        if (node.leaf) {
+            int index = findKeyIndex(node.keys, key);
+
+            if (index < node.keys.size()
+                    && node.keys.get(index).equals(key)) {
+                node.keys.remove(index);
+                node.values.remove(index);
+                size--;
+                return node.keys.size() < MIN_KEYS;
+            }
+
+            return false;
+        }
+
+        int index = findChildIndex(node.keys, key);
+        boolean childUnderflow = delete(node.children.get(index), key);
+
+        if (childUnderflow) {
+            fixChild(node, index);
+        }
+
+        return node.keys.size() < MIN_KEYS;
+    }
+
+    private void fixChild(BPlusTreeNode parent, int index) {
+        BPlusTreeNode child = parent.children.get(index);
+        BPlusTreeNode leftSibling = index > 0 ? parent.children.get(index - 1) : null;
+        BPlusTreeNode rightSibling = index < parent.children.size() - 1
+                ? parent.children.get(index + 1)
+                : null;
+
+        if (child.leaf) {
+            fixLeafChild(parent, child, leftSibling, rightSibling, index);
+        } else {
+            fixInternalChild(parent, child, leftSibling, rightSibling, index);
+        }
+    }
+
+    private void fixLeafChild(
+            BPlusTreeNode parent,
+            BPlusTreeNode child,
+            BPlusTreeNode leftSibling,
+            BPlusTreeNode rightSibling,
+            int index) {
+
+        if (leftSibling != null
+                && leftSibling.keys.size() > MIN_KEYS) {
+            child.keys.add(0, leftSibling.keys.remove(leftSibling.keys.size() - 1));
+            child.values.add(0, leftSibling.values.remove(leftSibling.values.size() - 1));
+            parent.keys.set(index - 1, child.keys.get(0));
+            return;
+        }
+
+        if (rightSibling != null
+                && rightSibling.keys.size() > MIN_KEYS) {
+            child.keys.add(rightSibling.keys.remove(0));
+            child.values.add(rightSibling.values.remove(0));
+            parent.keys.set(index, rightSibling.keys.get(0));
+            return;
+        }
+
+        if (leftSibling != null) {
+            leftSibling.keys.addAll(child.keys);
+            leftSibling.values.addAll(child.values);
+            leftSibling.next = child.next;
+            parent.keys.remove(index - 1);
+            parent.children.remove(index);
+            return;
+        }
+
+        if (rightSibling != null) {
+            child.keys.addAll(rightSibling.keys);
+            child.values.addAll(rightSibling.values);
+            child.next = rightSibling.next;
+            parent.keys.remove(index);
+            parent.children.remove(index + 1);
+        }
+    }
+
+    private void fixInternalChild(
+            BPlusTreeNode parent,
+            BPlusTreeNode child,
+            BPlusTreeNode leftSibling,
+            BPlusTreeNode rightSibling,
+            int index) {
+
+        if (leftSibling != null
+                && leftSibling.keys.size() > MIN_KEYS) {
+            child.keys.add(0, parent.keys.get(index - 1));
+            parent.keys.set(index - 1,
+                    leftSibling.keys.remove(leftSibling.keys.size() - 1));
+            child.children.add(0,
+                    leftSibling.children.remove(leftSibling.children.size() - 1));
+            return;
+        }
+
+        if (rightSibling != null
+                && rightSibling.keys.size() > MIN_KEYS) {
+            child.keys.add(parent.keys.get(index));
+            parent.keys.set(index, rightSibling.keys.remove(0));
+            child.children.add(rightSibling.children.remove(0));
+            return;
+        }
+
+        if (leftSibling != null) {
+            leftSibling.keys.add(parent.keys.remove(index - 1));
+            leftSibling.keys.addAll(child.keys);
+            leftSibling.children.addAll(child.children);
+            parent.children.remove(index);
+            return;
+        }
+
+        if (rightSibling != null) {
+            child.keys.add(parent.keys.remove(index));
+            child.keys.addAll(rightSibling.keys);
+            child.children.addAll(rightSibling.children);
+            parent.children.remove(index + 1);
         }
     }
 }

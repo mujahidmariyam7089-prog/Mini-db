@@ -124,4 +124,30 @@ class DatabaseTest {
             database.close();
         }
     }
+
+    @Test
+    void handlesManyKeysCorrectly() throws IOException {
+        Path databaseFile = tempDir.resolve("stress-test.db");
+        Database database = new Database(databaseFile.toString());
+
+        try {
+            for (int i = 0; i < 500; i++) {
+                database.set("key" + i, "value" + i);
+            }
+
+            assertEquals(500, database.count());
+
+            for (int i = 0; i < 500; i++) {
+                assertEquals("value" + i, database.get("key" + i));
+            }
+
+            assertTrue(database.keys("key1*").size() >= 100);
+
+            database.delete("key250");
+            assertEquals(499, database.count());
+            assertFalse(database.exists("key250"));
+        } finally {
+            database.close();
+        }
+    }
 }
