@@ -48,6 +48,12 @@ public class Page {
             for (Long value : values) {
                 out.writeLong(value);
             }
+        } else {
+            out.writeInt(childPageIds.size());
+
+            for (Integer childPageId : childPageIds) {
+                out.writeInt(childPageId);
+            }
         }
 
         byte[] data = byteStream.toByteArray();
@@ -83,6 +89,12 @@ public class Page {
         if (pageType == LEAF_PAGE) {
             for (int i = 0; i < keyCount; i++) {
                 result.values.add(in.readLong());
+            }
+        } else {
+            int childCount = in.readInt();
+
+            for (int i = 0; i < childCount; i++) {
+                result.childPageIds.add(in.readInt());
             }
         }
 
