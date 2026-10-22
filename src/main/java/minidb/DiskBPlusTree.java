@@ -5,6 +5,7 @@ import java.io.IOException;
 public class DiskBPlusTree implements AutoCloseable {
 
     private static final int MAX_KEYS = 3;
+    private static final int MIN_KEYS = 1;
 
     private final PageFile file;
     private int rootPageId;
@@ -195,5 +196,189 @@ public class DiskBPlusTree implements AutoCloseable {
     private static class Split {
         String key;
         int rightPageId;
+    }
+
+    public void remove(String key) throws IOException {
+        if (rootPageId == -1) {
+            return;
+        }
+
+        Page root = file.readPage(rootPageId);
+        delete(root, key);
+
+        if (root.pageType == Page.INTERNAL_PAGE
+                && root.keys.isEmpty()) {
+            rootPageId = root.childPageIds.get(0);
+            file.writeRootPageId(rootPageId);
+        }
+    }
+
+    private boolean delete(Page node, String key) throws IOException {
+        if (node.pageType == Page.LEAF_PAGE) {
+            int index = findKeyIndex(node.keys, key);
+
+            if (index < node.keys.size()
+                    && node.keys.get(index).equals(key)) {
+                node.keys.remove(index);
+                node.values.remove(index);
+                file.writePage(node);
+
+                return node.keys.size() < MIN_KEYS;
+            }
+
+            return false;
+        }
+
+        int index = findChildIndex(node.keys, key);
+        Page child = file.readPage(node.childPageIds.get(index));
+
+        boolean childUnderflow = delete(child, key);
+
+        if (childUnderflow) {
+            fixChild(node, index);
+        }
+
+        return node.keys.size() < MIN_KEYS;
+    }
+
+    private void fixChild(Page parent, int index) throws IOException {
+        Page child = file.readPage(parent.childPageIds.get(index));
+
+        Page leftSibling = index > 0
+                ? file.readPage(parent.childPageIds.get(index - 1))
+                : null;
+
+        Page rightSibling = index < parent.childPageIds.size() - 1
+                ? file.readPage(parent.childPageIds.get(index + 1))
+                : null;
+
+        if (child.pageType == Page.LEAF_PAGE) {
+            fixLeafChild(parent, child, leftSibling, rightSibling, index);
+        } else {
+            fixInternalChild(parent, child, leftSibling, rightSibling, index);
+        }
+    }
+
+    private void fixLeafChild(
+            Page parent,
+            Page child,
+            Page leftSibling,
+            Page rightSibling,
+            int index) throws IOException {
+
+        if (leftSibling != null
+                && leftSibling.keys.size() > MIN_KEYS) {
+            child.keys.add(0,
+                    leftSibling.keys.remove(leftSibling.keys.size() - 1));
+            child.values.add(0,
+                    leftSibling.values.remove(leftSibling.values.size() - 1));
+            parent.keys.set(index - 1, child.keys.get(0));
+
+            file.writePage(child);
+            file.writePage(leftSibling);
+            file.writePage(parent);
+
+            return;
+        }
+
+        if (rightSibling != null
+                && rightSibling.keys.size() > MIN_KEYS) {
+            child.keys.add(rightSibling.keys.remove(0));
+            child.values.add(rightSibling.values.remove(0));
+            parent.keys.set(index, rightSibling.keys.get(0));
+
+            file.writePage(child);
+            file.writePage(rightSibling);
+            file.writePage(parent);
+
+            return;
+        }
+
+        if (leftSibling != null) {
+            leftSibling.keys.addAll(child.keys);
+            leftSibling.values.addAll(child.values);
+            leftSibling.nextLeafPageId = child.nextLeafPageId;
+
+            parent.keys.remove(index - 1);
+            parent.childPageIds.remove(index);
+
+            file.writePage(leftSibling);
+            file.writePage(parent);
+
+            return;
+        }
+
+        if (rightSibling != null) {
+            child.keys.addAll(rightSibling.keys);
+            child.values.addAll(rightSibling.values);
+            child.nextLeafPageId = rightSibling.nextLeafPageId;
+
+            parent.keys.remove(index);
+            parent.childPageIds.remove(index + 1);
+
+            file.writePage(child);
+            file.writePage(parent);
+        }
+    }
+
+    private void fixInternalChild(
+            Page parent,
+            Page child,
+            Page leftSibling,
+            Page rightSibling,
+            int index) throws IOException {
+
+        if (leftSibling != null
+                && leftSibling.keys.size() > MIN_KEYS) {
+            child.keys.add(0, parent.keys.get(index - 1));
+            parent.keys.set(index - 1,
+                    leftSibling.keys.remove(leftSibling.keys.size() - 1));
+            child.childPageIds.add(0,
+                    leftSibling.childPageIds.remove(
+                            leftSibling.childPageIds.size() - 1));
+
+            file.writePage(child);
+            file.writePage(leftSibling);
+            file.writePage(parent);
+
+            return;
+        }
+
+        if (rightSibling != null
+                && rightSibling.keys.size() > MIN_KEYS) {
+            child.keys.add(parent.keys.get(index));
+            parent.keys.set(index, rightSibling.keys.remove(0));
+            child.childPageIds.add(rightSibling.childPageIds.remove(0));
+
+            file.writePage(child);
+            file.writePage(rightSibling);
+            file.writePage(parent);
+
+            return;
+        }
+
+        if (leftSibling != null) {
+            leftSibling.keys.add(parent.keys.remove(index - 1));
+            leftSibling.keys.addAll(child.keys);
+            leftSibling.childPageIds.addAll(child.childPageIds);
+
+            parent.childPageIds.remove(index);
+
+            file.writePage(leftSibling);
+            file.writePage(parent);
+
+            return;
+        }
+
+        if (rightSibling != null) {
+            child.keys.add(parent.keys.remove(index));
+            child.keys.addAll(rightSibling.keys);
+            child.childPageIds.addAll(rightSibling.childPageIds);
+
+            parent.childPageIds.remove(index + 1);
+
+            file.writePage(child);
+            file.writePage(parent);
+        }
     }
 }
