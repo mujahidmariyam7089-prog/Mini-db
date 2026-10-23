@@ -381,4 +381,30 @@ public class DiskBPlusTree implements AutoCloseable {
             file.writePage(parent);
         }
     }
+
+    public java.util.List<String> keys() throws IOException {
+        java.util.List<String> allKeys = new java.util.ArrayList<>();
+
+        if (rootPageId == -1) {
+            return allKeys;
+        }
+
+        Page node = file.readPage(rootPageId);
+
+        while (node.pageType == Page.INTERNAL_PAGE) {
+            node = file.readPage(node.childPageIds.get(0));
+        }
+
+        while (node != null) {
+            allKeys.addAll(node.keys);
+
+            if (node.nextLeafPageId == -1) {
+                break;
+            }
+
+            node = file.readPage(node.nextLeafPageId);
+        }
+
+        return allKeys;
+    }
 }

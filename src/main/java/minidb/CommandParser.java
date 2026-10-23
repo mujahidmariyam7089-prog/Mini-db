@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.List;
 
 public class CommandParser {
+
     private final Database db;
 
     public CommandParser(Database db) {
@@ -72,7 +73,7 @@ public class CommandParser {
               INCR <key>           Increase a numeric value by 1
               DECR <key>           Decrease a numeric value by 1
               COUNT                Show the number of stored keys
-              KEYS <pattern>        List keys matching a pattern
+              KEYS <pattern>       List keys matching a pattern
               HELP                 Show commands
               EXIT                 Quit the database
             """;
@@ -115,7 +116,7 @@ public class CommandParser {
         return String.join("\n", all);
     }
 
-    private String handleExists(String[] parts) {
+    private String handleExists(String[] parts) throws IOException {
         if (parts.length < 2) {
             return "Usage: EXISTS <key>";
         }
@@ -141,7 +142,7 @@ public class CommandParser {
         if (parts.length < 2) {
             return "Usage: DECR <key>";
         }
-        
+
         try {
             long newValue = db.decrement(parts[1]);
             return String.valueOf(newValue);
@@ -149,22 +150,23 @@ public class CommandParser {
             return "ERR value is not an integer";
         }
     }
-    private String handleCount() {
-    int total = db.count();
-    return String.valueOf(total);
-    }  
 
-    private String handleKeys(String[] parts) {
-    if (parts.length < 2) {
-        return "Usage: KEYS <pattern>";
+    private String handleCount() throws IOException {
+        int total = db.count();
+        return String.valueOf(total);
     }
 
-    List<String> keys = db.keys(parts[1]);
+    private String handleKeys(String[] parts) throws IOException {
+        if (parts.length < 2) {
+            return "Usage: KEYS <pattern>";
+        }
 
-    if (keys.isEmpty()) {
-        return "(empty)";
+        List<String> keys = db.keys(parts[1]);
+
+        if (keys.isEmpty()) {
+            return "(empty)";
+        }
+
+        return String.join("\n", keys);
     }
-
-    return String.join("\n", keys);
-} 
 }
