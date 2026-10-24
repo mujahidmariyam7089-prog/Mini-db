@@ -407,4 +407,9 @@ public class DiskBPlusTree implements AutoCloseable {
 
         return allKeys;
     }
+
+    public void clear() throws IOException {
+        rootPageId = -1;
+        file.writeRootPageId(-1);
+    }
 }

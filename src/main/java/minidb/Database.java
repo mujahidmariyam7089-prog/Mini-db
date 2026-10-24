@@ -157,7 +157,31 @@ public class Database {
         return result;
     }
 
+    public void compact() throws IOException {
+        List<String> keys = index.keys();
+        List<String> lines = new ArrayList<>();
+
+        for (String key : keys) {
+            String value = get(key);
+
+            if (value != null) {
+                lines.add(key + "=" + value);
+            }
+        }
+
+        List<Long> offsets = diskManager.rewriteAll(lines);
+
+        index.clear();
+
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            String key = line.substring(0, line.indexOf('='));
+            index.put(key, offsets.get(i));
+        }
+    }
+
     public void close() throws IOException {
         index.close();
+        diskManager.close();
     }
 }

@@ -52,6 +52,9 @@ public class CommandParser {
             case "KEYS":
                 return handleKeys(parts);
 
+            case "COMPACT":
+                return handleCompact();
+
             case "EXIT":
             case "QUIT":
                 return "Exiting...";
@@ -63,20 +66,21 @@ public class CommandParser {
 
     private String help() {
         return """
-            Available commands:
+                Available commands:
 
-              SET <key> <value>    Store a value
-              GET <key>            Read a value
-              DELETE <key>         Delete a key
-              LIST                 List all keys
-              EXISTS <key>         Check whether a key exists
-              INCR <key>           Increase a numeric value by 1
-              DECR <key>           Decrease a numeric value by 1
-              COUNT                Show the number of stored keys
-              KEYS <pattern>       List keys matching a pattern
-              HELP                 Show commands
-              EXIT                 Quit the database
-            """;
+                  SET <key> <value>    Store a value
+                  GET <key>            Read a value
+                  DELETE <key>         Delete a key
+                  LIST                 List all keys
+                  EXISTS <key>         Check whether a key exists
+                  INCR <key>           Increase a numeric value by 1
+                  DECR <key>           Decrease a numeric value by 1
+                  COUNT                Show the number of stored keys
+                  KEYS <pattern>       List keys matching a pattern
+                  COMPACT              Reclaim space from deleted keys
+                  HELP                 Show commands
+                  EXIT                 Quit the database
+                """;
     }
 
     private String handleSet(String[] parts) throws IOException {
@@ -168,5 +172,9 @@ public class CommandParser {
         }
 
         return String.join("\n", keys);
+    }
+        private String handleCompact() throws IOException {
+        db.compact();
+        return "OK";
     }
 }

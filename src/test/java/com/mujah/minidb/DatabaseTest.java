@@ -150,4 +150,36 @@ class DatabaseTest {
             database.close();
         }
     }
+
+    @Test
+    void compactionRemovesDeletedData() throws IOException {
+        Path databaseFile = tempDir.resolve("compact.db");
+        Database database = new Database(databaseFile.toString());
+
+        try {
+            database.set("name", "Mujah");
+            database.set("city", "Mumbai");
+            database.set("temp", "delete-me");
+
+            database.delete("temp");
+            database.compact();
+
+            assertEquals("Mujah", database.get("name"));
+            assertEquals("Mumbai", database.get("city"));
+            assertFalse(database.exists("temp"));
+            assertEquals(2, database.count());
+        } finally {
+            database.close();
+        }
+
+        Database reopened = new Database(databaseFile.toString());
+
+        try {
+            assertEquals("Mujah", reopened.get("name"));
+            assertEquals("Mumbai", reopened.get("city"));
+            assertFalse(reopened.exists("temp"));
+        } finally {
+            reopened.close();
+        }
+    }
 }

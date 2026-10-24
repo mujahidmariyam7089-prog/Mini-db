@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class DiskManager {
+
     private final RandomAccessFile file;
 
     public DiskManager(String fileName) throws FileNotFoundException {
@@ -17,8 +18,10 @@ public class DiskManager {
     public long appendLine(String line) throws IOException {
         long offset = file.length();
         file.seek(offset);
+
         String data = line + "\n";
         file.writeBytes(data);
+
         return offset;
     }
 
@@ -29,6 +32,7 @@ public class DiskManager {
         if (line == null) {
             return null;
         }
+
         return new String(
                 line.getBytes(StandardCharsets.ISO_8859_1),
                 StandardCharsets.UTF_8);
@@ -37,6 +41,7 @@ public class DiskManager {
     public List<String> readAllLines() throws IOException {
         List<String> lines = new ArrayList<>();
         file.seek(0);
+
         String line;
 
         while ((line = file.readLine()) != null) {
@@ -45,10 +50,25 @@ public class DiskManager {
                     StandardCharsets.UTF_8);
             lines.add(utfLine);
         }
+
         return lines;
     }
 
-   public void close() throws IOException {
-    index.close();
-    diskManager.close();
+    public List<Long> rewriteAll(List<String> lines) throws IOException {
+        file.setLength(0);
+        file.seek(0);
+
+        List<Long> offsets = new ArrayList<>();
+
+        for (String line : lines) {
+            offsets.add(file.length());
+            file.writeBytes(line + "\n");
+        }
+
+        return offsets;
+    }
+
+    public void close() throws IOException {
+        file.close();
+    }
 }
