@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Database {
-
+    private final String fileName;
     private final DiskManager diskManager;
     private final DiskBPlusTree index;
 
@@ -184,4 +184,19 @@ public class Database {
         index.close();
         diskManager.close();
     }
+
+    public String stats() throws IOException {
+        long dataSize = diskManager.fileSize();
+
+        java.nio.file.Path indexPath = java.nio.file.Path.of(fileName + ".index");
+        long indexSize = java.nio.file.Files.exists(indexPath)
+                ? java.nio.file.Files.size(indexPath)
+                : 0;
+
+        return "keys: " + count()
+                + "\ndata size: " + dataSize + " bytes"
+                + "\nindex size: " + indexSize + " bytes";
+    }
+
+   
 }

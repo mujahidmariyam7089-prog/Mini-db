@@ -55,6 +55,9 @@ public class CommandParser {
             case "COMPACT":
                 return handleCompact();
 
+            case "STATS":
+                return handleStats();
+
             case "EXIT":
             case "QUIT":
                 return "Exiting...";
@@ -78,6 +81,7 @@ public class CommandParser {
                   COUNT                Show the number of stored keys
                   KEYS <pattern>       List keys matching a pattern
                   COMPACT              Reclaim space from deleted keys
+                  STATS                Show database statistics
                   HELP                 Show commands
                   EXIT                 Quit the database
                 """;
@@ -173,8 +177,13 @@ public class CommandParser {
 
         return String.join("\n", keys);
     }
-        private String handleCompact() throws IOException {
+
+    private String handleCompact() throws IOException {
         db.compact();
         return "OK";
+    }
+
+    private String handleStats() throws IOException {
+        return db.stats();
     }
 }

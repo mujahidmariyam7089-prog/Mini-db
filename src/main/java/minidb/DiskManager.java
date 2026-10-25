@@ -71,4 +71,8 @@ public class DiskManager {
     public void close() throws IOException {
         file.close();
     }
+
+    public long fileSize() throws IOException {
+        return file.length();
+    }
 }

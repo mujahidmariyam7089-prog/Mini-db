@@ -182,4 +182,23 @@ class DatabaseTest {
             reopened.close();
         }
     }
+
+    @Test
+    void statsShowKeyCountAndFileSizes() throws IOException {
+        Path databaseFile = tempDir.resolve("stats.db");
+        Database database = new Database(databaseFile.toString());
+
+        try {
+            database.set("name", "Mujah");
+            database.set("city", "Mumbai");
+
+            String stats = database.stats();
+
+            assertTrue(stats.contains("keys: 2"));
+            assertTrue(stats.contains("data size:"));
+            assertTrue(stats.contains("index size:"));
+        } finally {
+            database.close();
+        }
+    }
 }
