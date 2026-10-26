@@ -9,11 +9,12 @@ public class Database {
     private final DiskManager diskManager;
     private final DiskBPlusTree index;
 
-    public Database(String fileName) throws IOException {
-        this.diskManager = new DiskManager(fileName);
-        String indexFilePath = fileName + ".index";
-        this.index = new DiskBPlusTree(indexFilePath);
-    }
+   public Database(String fileName) throws IOException {
+    this.fileName = fileName;
+    this.diskManager = new DiskManager(fileName);
+    String indexFilePath = fileName + ".index";
+    this.index = new DiskBPlusTree(indexFilePath);
+}
 
     public void set(String key, String value) throws IOException {
         String line = key + "=" + value;

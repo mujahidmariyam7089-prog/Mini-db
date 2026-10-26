@@ -64,4 +64,19 @@ class DiskBPlusTreeTest {
             }
         }
     }
+
+    @Test
+    void handlesMoreKeysThanCacheCapacity() throws IOException {
+        Path indexFile = tempDir.resolve("cache-stress.db");
+
+        try (DiskBPlusTree tree = new DiskBPlusTree(indexFile.toString())) {
+            for (int i = 0; i < 500; i++) {
+                tree.put("key" + i, i);
+            }
+
+            for (int i = 0; i < 500; i++) {
+                assertEquals((long) i, tree.get("key" + i));
+            }
+        }
+    }
 }

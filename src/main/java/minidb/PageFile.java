@@ -2,6 +2,8 @@ package com.mujah.minidb;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class PageFile implements AutoCloseable {
 
@@ -40,6 +42,12 @@ public class PageFile implements AutoCloseable {
     }
 
     public Page readPage(int pageId) throws IOException {
+        Page cached = pageCache.get(pageId);
+
+        if (cached != null) {
+            return cached;
+        }
+
         long position = (long) pageId * Page.PAGE_SIZE;
 
         if (position + Page.PAGE_SIZE > file.length()) {
@@ -52,11 +60,14 @@ public class PageFile implements AutoCloseable {
         byte[] bytes = new byte[Page.PAGE_SIZE];
         file.readFully(bytes);
 
-        return Page.deserialize(bytes);
+        Page page = Page.deserialize(bytes);
+        pageCache.put(pageId, page);
+
+        return page;
     }
 
     public void writePage(Page page) throws IOException {
-        if (page.pageId == HEADER_PAGE_ID) {
+        if (page.pageId == 0) {
             throw new IOException(
                     "Page 0 is reserved for the database header");
         }
@@ -65,6 +76,8 @@ public class PageFile implements AutoCloseable {
 
         file.seek(position);
         file.write(page.serialize());
+
+        pageCache.put(page.pageId, page);
     }
 
     public int appendPage(Page page) throws IOException {
@@ -80,4 +93,14 @@ public class PageFile implements AutoCloseable {
     public void close() throws IOException {
         file.close();
     }
+
+    private static final int CACHE_CAPACITY = 64;
+
+    private final Map<Integer, Page> pageCache = new LinkedHashMap<>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(
+                Map.Entry<Integer, Page> eldest) {
+            return size() > CACHE_CAPACITY;
+        }
+    };
 }
