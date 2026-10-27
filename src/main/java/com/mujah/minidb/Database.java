@@ -8,18 +8,52 @@ public class Database {
     private final String fileName;
     private final DiskManager diskManager;
     private final DiskBPlusTree index;
+    private final WalManager wal;
 
-   public Database(String fileName) throws IOException {
-    this.fileName = fileName;
-    this.diskManager = new DiskManager(fileName);
-    String indexFilePath = fileName + ".index";
-    this.index = new DiskBPlusTree(indexFilePath);
-}
+    public Database(String fileName) throws IOException {
+        this.fileName = fileName;
+        this.diskManager = new DiskManager(fileName);
+        this.index = new DiskBPlusTree(fileName + ".index");
+        this.wal = new WalManager(fileName + ".wal");
+
+        recoverFromWal();
+    }
+
+    private void recoverFromWal() throws IOException {
+        List<String> records = wal.readAll();
+
+        for (String record : records) {
+            if (record.startsWith("SET ")) {
+                String body = record.substring(4);
+                int equalsPosition = body.indexOf('=');
+
+                if (equalsPosition > 0) {
+                    String key = body.substring(0, equalsPosition);
+                    String value = body.substring(equalsPosition + 1);
+                    applySet(key, value);
+                }
+            } else if (record.startsWith("DEL ")) {
+                applyDelete(record.substring(4));
+            }
+      
+        }
+
+        wal.clear();
+    }
+
+    private void applySet(String key, String value) throws IOException {
+        long newOffset = diskManager.appendLine(key + "=" + value);
+        index.put(key, newOffset);
+    }
+
+    private void applyDelete(String key) throws IOException {
+        index.remove(key);
+    }
 
     public void set(String key, String value) throws IOException {
-        String line = key + "=" + value;
-        long newOffset = diskManager.appendLine(line);
-        index.put(key, newOffset);
+        wal.append("SET " + key + "=" + value);
+        applySet(key, value);
+        wal.clear();
     }
 
     public String get(String key) throws IOException {
@@ -141,7 +175,9 @@ public class Database {
     }
 
     public void delete(String key) throws IOException {
-        index.remove(key);
+        wal.append("DEL " + key);
+        applyDelete(key);
+        wal.clear();
     }
 
     public List<String> listAll() throws IOException {
@@ -184,6 +220,7 @@ public class Database {
     public void close() throws IOException {
         index.close();
         diskManager.close();
+        wal.close();
     }
 
     public String stats() throws IOException {
@@ -198,6 +235,4 @@ public class Database {
                 + "\ndata size: " + dataSize + " bytes"
                 + "\nindex size: " + indexSize + " bytes";
     }
-
-   
 }

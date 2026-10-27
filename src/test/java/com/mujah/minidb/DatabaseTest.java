@@ -1,10 +1,7 @@
 package com.mujah.minidb;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-
-import com.mujah.minidb.Database;
-
-import minidb.WalManager;
 
 import java.io.IOException;
 import java.nio.file.Path;
