@@ -1,9 +1,10 @@
 package com.mujah.minidb;
-
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import com.mujah.minidb.Database;
+
+import minidb.WalManager;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -199,6 +200,28 @@ class DatabaseTest {
             assertTrue(stats.contains("index size:"));
         } finally {
             database.close();
+        }
+    }
+
+    @Test
+    void recoversUnfinishedOperationFromWal() throws IOException {
+        Path databaseFile = tempDir.resolve("wal-recovery.db");
+
+        Database database = new Database(databaseFile.toString());
+        database.set("name", "Mujah");
+        database.close();
+
+        try (WalManager wal = new WalManager(databaseFile.toString() + ".wal")) {
+            wal.append("SET city=Mumbai");
+        }
+
+        Database recovered = new Database(databaseFile.toString());
+
+        try {
+            assertEquals("Mumbai", recovered.get("city"));
+            assertEquals("Mujah", recovered.get("name"));
+        } finally {
+            recovered.close();
         }
     }
 }
