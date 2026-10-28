@@ -221,4 +221,51 @@ class DatabaseTest {
             recovered.close();
         }
     }
+
+    @Test
+    void commitsAllChangesInTransaction() throws IOException {
+        Path databaseFile = tempDir.resolve("tx-commit.db");
+
+        try (Database database = new Database(databaseFile.toString())) {
+            try (Transaction tx = database.begin()) {
+                tx.set("name", "Mujah");
+                tx.set("city", "Mumbai");
+                tx.commit();
+            }
+
+            assertEquals("Mujah", database.get("name"));
+            assertEquals("Mumbai", database.get("city"));
+        }
+    }
+
+    @Test
+    void rollbackDiscardsAllChanges() throws IOException {
+        Path databaseFile = tempDir.resolve("tx-rollback.db");
+
+        try (Database database = new Database(databaseFile.toString())) {
+            database.set("name", "Mujah");
+
+            try (Transaction tx = database.begin()) {
+                tx.set("name", "Wrong");
+                tx.set("city", "Nowhere");
+                tx.rollback();
+            }
+
+            assertEquals("Mujah", database.get("name"));
+            assertNull(database.get("city"));
+        }
+    }
+
+    @Test
+    void unclosedTransactionRollsBack() throws IOException {
+        Path databaseFile = tempDir.resolve("tx-auto-rollback.db");
+
+        try (Database database = new Database(databaseFile.toString())) {
+            try (Transaction tx = database.begin()) {
+                tx.set("name", "Temporary");
+            }
+
+            assertNull(database.get("name"));
+        }
+    }
 }

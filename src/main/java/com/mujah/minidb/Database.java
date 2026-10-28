@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Database {
+public class Database implements AutoCloseable{
     private final String fileName;
     private final DiskManager diskManager;
     private final DiskBPlusTree index;
@@ -35,7 +35,7 @@ public class Database {
             } else if (record.startsWith("DEL ")) {
                 applyDelete(record.substring(4));
             }
-      
+
         }
 
         wal.clear();
@@ -215,6 +215,10 @@ public class Database {
             String key = line.substring(0, line.indexOf('='));
             index.put(key, offsets.get(i));
         }
+    }
+
+    public Transaction begin() {
+        return new Transaction(this);
     }
 
     public void close() throws IOException {
