@@ -268,4 +268,37 @@ class DatabaseTest {
             assertNull(database.get("name"));
         }
     }
+
+    @Test
+    void handlesConcurrentIncrements() throws Exception {
+        Path databaseFile = tempDir.resolve("concurrent-increment.db");
+
+        try (Database database = new Database(databaseFile.toString())) {
+            int threadCount = 10;
+            int incrementsPerThread = 100;
+
+            Thread[] threads = new Thread[threadCount];
+
+            for (int i = 0; i < threadCount; i++) {
+                threads[i] = new Thread(() -> {
+                    try {
+                        for (int j = 0; j < incrementsPerThread; j++) {
+                            database.increment("counter");
+                        }
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                threads[i].start();
+            }
+
+            for (Thread thread : threads) {
+                thread.join();
+            }
+
+            assertEquals(
+                    String.valueOf(threadCount * incrementsPerThread),
+                    database.get("counter"));
+        }
+    }
 }

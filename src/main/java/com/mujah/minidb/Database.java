@@ -3,12 +3,14 @@ package com.mujah.minidb;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 
-public class Database implements AutoCloseable{
+public class Database implements AutoCloseable {
     private final String fileName;
     private final DiskManager diskManager;
     private final DiskBPlusTree index;
     private final WalManager wal;
+    private final ReentrantLock lock = new ReentrantLock();
 
     public Database(String fileName) throws IOException {
         this.fileName = fileName;
@@ -89,35 +91,39 @@ public class Database implements AutoCloseable{
     }
 
     public long increment(String key) throws IOException {
-        String currentValue = get(key);
-        long number;
+        lock.lock();
 
-        if (currentValue == null) {
-            number = 0;
-        } else {
-            number = Long.parseLong(currentValue);
+        try {
+            String currentValue = get(key);
+            long number = currentValue == null
+                    ? 0
+                    : Long.parseLong(currentValue);
+
+            number++;
+            set(key, String.valueOf(number));
+
+            return number;
+        } finally {
+            lock.unlock();
         }
-
-        number++;
-        set(key, String.valueOf(number));
-
-        return number;
     }
 
     public long decrement(String key) throws IOException {
-        String currentValue = get(key);
-        long number;
+        lock.lock();
 
-        if (currentValue == null) {
-            number = 0;
-        } else {
-            number = Long.parseLong(currentValue);
+        try {
+            String currentValue = get(key);
+            long number = currentValue == null
+                    ? 0
+                    : Long.parseLong(currentValue);
+
+            number--;
+            set(key, String.valueOf(number));
+
+            return number;
+        } finally {
+            lock.unlock();
         }
-
-        number--;
-        set(key, String.valueOf(number));
-
-        return number;
     }
 
     public int count() throws IOException {
