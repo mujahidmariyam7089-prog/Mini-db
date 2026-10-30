@@ -301,4 +301,30 @@ class DatabaseTest {
                     database.get("counter"));
         }
     }
+
+    @Test
+    void exportsAndRestoresSnapshot() throws IOException {
+        Path databaseFile = tempDir.resolve("snapshot-source.db");
+        Path snapshotFile = tempDir.resolve("backup.snapshot");
+
+        try (Database database = new Database(databaseFile.toString())) {
+            database.set("name", "Mujah");
+            database.set("city", "Mumbai");
+            database.set("temp", "delete-me");
+            database.delete("temp");
+
+            database.exportTo(snapshotFile.toString());
+        }
+
+        Path restoredFile = tempDir.resolve("snapshot-restored.db");
+
+        try (Database restored = new Database(restoredFile.toString())) {
+            restored.restoreFrom(snapshotFile.toString());
+
+            assertEquals("Mujah", restored.get("name"));
+            assertEquals("Mumbai", restored.get("city"));
+            assertNull(restored.get("temp"));
+            assertEquals(2, restored.count());
+        }
+    }
 }

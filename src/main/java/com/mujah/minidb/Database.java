@@ -245,4 +245,44 @@ public class Database implements AutoCloseable {
                 + "\ndata size: " + dataSize + " bytes"
                 + "\nindex size: " + indexSize + " bytes";
     }
+
+    public void exportTo(String snapshotFile) throws IOException {
+        lock.lock();
+
+        try (java.io.BufferedWriter writer = java.nio.file.Files.newBufferedWriter(
+                java.nio.file.Path.of(snapshotFile))) {
+
+            for (String key : index.keys()) {
+                String value = get(key);
+
+                if (value != null) {
+                    writer.write(key + "=" + value);
+                    writer.newLine();
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public void restoreFrom(String snapshotFile) throws IOException {
+        lock.lock();
+
+        try {
+            List<String> lines = java.nio.file.Files.readAllLines(
+                    java.nio.file.Path.of(snapshotFile));
+
+            for (String line : lines) {
+                int equalsPosition = line.indexOf('=');
+
+                if (equalsPosition > 0) {
+                    String key = line.substring(0, equalsPosition);
+                    String value = line.substring(equalsPosition + 1);
+                    set(key, value);
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
 }
