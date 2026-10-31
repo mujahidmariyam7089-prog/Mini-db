@@ -327,4 +327,20 @@ class DatabaseTest {
             assertEquals(2, restored.count());
         }
     }
+
+    @Test
+    void expiresKeyAfterTtl() throws Exception {
+        Path databaseFile = tempDir.resolve("ttl.db");
+
+        try (Database database = new Database(databaseFile.toString())) {
+            database.set("session", "abc123");
+            database.expire("session", 1);
+
+            assertEquals("abc123", database.get("session"));
+
+            Thread.sleep(1100);
+
+            assertNull(database.get("session"));
+        }
+    }
 }

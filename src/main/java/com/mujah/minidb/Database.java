@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Database implements AutoCloseable {
     private final String fileName;
@@ -11,6 +13,7 @@ public class Database implements AutoCloseable {
     private final DiskBPlusTree index;
     private final WalManager wal;
     private final ReentrantLock lock = new ReentrantLock();
+    private final Map<String, Long> expiryTimes = new HashMap<>();
 
     public Database(String fileName) throws IOException {
         this.fileName = fileName;
@@ -50,6 +53,7 @@ public class Database implements AutoCloseable {
 
     private void applyDelete(String key) throws IOException {
         index.remove(key);
+        expiryTimes.remove(key);
     }
 
     public void set(String key, String value) throws IOException {
@@ -59,6 +63,14 @@ public class Database implements AutoCloseable {
     }
 
     public String get(String key) throws IOException {
+        Long expiry = expiryTimes.get(key);
+
+        if (expiry != null && System.currentTimeMillis() >= expiry) {
+            expiryTimes.remove(key);
+            delete(key);
+            return null;
+        }
+
         Long offset = index.get(key);
 
         if (offset == null) {
@@ -281,6 +293,23 @@ public class Database implements AutoCloseable {
                     set(key, value);
                 }
             }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public void expire(String key, long seconds) throws IOException {
+        lock.lock();
+
+        try {
+            if (!exists(key)) {
+                throw new IllegalArgumentException(
+                        "Key does not exist: " + key);
+            }
+
+            expiryTimes.put(
+                    key,
+                    System.currentTimeMillis() + seconds * 1000);
         } finally {
             lock.unlock();
         }
