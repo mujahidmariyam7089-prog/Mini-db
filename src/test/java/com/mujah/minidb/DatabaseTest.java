@@ -343,4 +343,19 @@ class DatabaseTest {
             assertNull(database.get("session"));
         }
     }
+
+    @Test
+    void activelyRemovesExpiredKeysWithoutReadingThem() throws Exception {
+        Path databaseFile = tempDir.resolve("active-expiry.db");
+
+        try (Database database = new Database(databaseFile.toString())) {
+            database.set("session", "abc123");
+            database.expire("session", 1);
+
+            Thread.sleep(1500);
+
+            assertNull(database.get("session"));
+            assertFalse(database.exists("session"));
+        }
+    }
 }

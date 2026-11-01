@@ -14,6 +14,13 @@ public class Database implements AutoCloseable {
     private final WalManager wal;
     private final ReentrantLock lock = new ReentrantLock();
     private final Map<String, Long> expiryTimes = new HashMap<>();
+    private final java.util.concurrent.ScheduledExecutorService expiryScheduler = java.util.concurrent.Executors
+            .newSingleThreadScheduledExecutor(
+                    runnable -> {
+                        Thread thread = new Thread(runnable, "mini-db-expiry");
+                        thread.setDaemon(true);
+                        return thread;
+                    });
 
     public Database(String fileName) throws IOException {
         this.fileName = fileName;
@@ -22,6 +29,7 @@ public class Database implements AutoCloseable {
         this.wal = new WalManager(fileName + ".wal");
 
         recoverFromWal();
+        startExpirySweeper();
     }
 
     private void recoverFromWal() throws IOException {
@@ -240,6 +248,7 @@ public class Database implements AutoCloseable {
     }
 
     public void close() throws IOException {
+        expiryScheduler.shutdownNow();
         index.close();
         diskManager.close();
         wal.close();
@@ -310,6 +319,35 @@ public class Database implements AutoCloseable {
             expiryTimes.put(
                     key,
                     System.currentTimeMillis() + seconds * 1000);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void startExpirySweeper() {
+        expiryScheduler.scheduleAtFixedRate(
+                this::removeExpiredKeys,
+                1,
+                1,
+                java.util.concurrent.TimeUnit.SECONDS);
+    }
+
+    private void removeExpiredKeys() {
+        lock.lock();
+
+        try {
+            long now = System.currentTimeMillis();
+
+            for (String key : new ArrayList<>(expiryTimes.keySet())) {
+                Long expiry = expiryTimes.get(key);
+
+                if (expiry != null && now >= expiry) {
+                    expiryTimes.remove(key);
+                    applyDelete(key);
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         } finally {
             lock.unlock();
         }
