@@ -47,8 +47,20 @@ public class Database implements AutoCloseable {
                 }
             } else if (record.startsWith("DEL ")) {
                 applyDelete(record.substring(4));
-            }
+            } else if (record.startsWith("EXPIRE ")) {
+                String body = record.substring(7);
+                int equalsPosition = body.indexOf('=');
 
+                if (equalsPosition > 0) {
+                    String key = body.substring(0, equalsPosition);
+                    long expiresAt = Long.parseLong(
+                            body.substring(equalsPosition + 1));
+
+                    if (System.currentTimeMillis() < expiresAt) {
+                        expiryTimes.put(key, expiresAt);
+                    }
+                }
+            }
         }
 
         wal.clear();
@@ -316,9 +328,11 @@ public class Database implements AutoCloseable {
                         "Key does not exist: " + key);
             }
 
-            expiryTimes.put(
-                    key,
-                    System.currentTimeMillis() + seconds * 1000);
+            long expiresAt = System.currentTimeMillis() + seconds * 1000;
+
+            wal.append("EXPIRE " + key + "=" + expiresAt);
+            expiryTimes.put(key, expiresAt);
+            wal.clear();
         } finally {
             lock.unlock();
         }

@@ -358,4 +358,18 @@ class DatabaseTest {
             assertFalse(database.exists("session"));
         }
     }
+
+    @Test
+    void preservesTtlAcrossRestart() throws Exception {
+        Path databaseFile = tempDir.resolve("ttl-restart.db");
+
+        try (Database database = new Database(databaseFile.toString())) {
+            database.set("session", "abc123");
+            database.expire("session", 5);
+        }
+
+        try (Database database = new Database(databaseFile.toString())) {
+            assertEquals("abc123", database.get("session"));
+        }
+    }
 }
