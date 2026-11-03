@@ -336,6 +336,31 @@ public class Database implements AutoCloseable {
         } finally {
             lock.unlock();
         }
+
+    }
+
+    public Long ttl(String key) throws IOException {
+        lock.lock();
+
+        try {
+            Long expiry = expiryTimes.get(key);
+
+            if (expiry == null) {
+                return null;
+            }
+
+            long remainingMillis = expiry - System.currentTimeMillis();
+
+            if (remainingMillis <= 0) {
+                expiryTimes.remove(key);
+                applyDelete(key);
+                return null;
+            }
+
+            return remainingMillis / 1000;
+        } finally {
+            lock.unlock();
+        }
     }
 
     private void startExpirySweeper() {
@@ -365,5 +390,18 @@ public class Database implements AutoCloseable {
         } finally {
             lock.unlock();
         }
+    }
+
+    public List<String> scan(String startKey, String endKey) throws IOException {
+        List<String> result = new ArrayList<>();
+
+        for (String key : index.keys()) {
+            if (key.compareTo(startKey) >= 0
+                    && key.compareTo(endKey) <= 0) {
+                result.add(key);
+            }
+        }
+
+        return result;
     }
 }

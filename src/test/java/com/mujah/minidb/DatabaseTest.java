@@ -5,9 +5,11 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -370,6 +372,41 @@ class DatabaseTest {
 
         try (Database database = new Database(databaseFile.toString())) {
             assertEquals("abc123", database.get("session"));
+        }
+    }
+
+    @Test
+    void scansKeysInRange() throws IOException {
+        Path databaseFile = tempDir.resolve("scan.db");
+
+        try (Database database = new Database(databaseFile.toString())) {
+            database.set("user:1", "A");
+            database.set("user:2", "B");
+            database.set("user:3", "C");
+            database.set("user:4", "D");
+
+            List<String> keys = database.scan("user:2", "user:3");
+
+            assertEquals(List.of("user:2", "user:3"), keys);
+        }
+    }
+
+    @Test
+    void returnsRemainingTtl() throws Exception {
+        Path databaseFile = tempDir.resolve("ttl-check.db");
+
+        try (Database database = new Database(databaseFile.toString())) {
+            database.set("session", "abc123");
+            database.expire("session", 10);
+
+            Long remaining = database.ttl("session");
+
+            assertNotNull(remaining);
+            assertTrue(remaining > 0 && remaining <= 10);
+
+            database.set("permanent", "forever");
+
+            assertNull(database.ttl("permanent"));
         }
     }
 }
