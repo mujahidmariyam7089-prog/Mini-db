@@ -1,16 +1,16 @@
 package com.mujah.minidb;
 
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-
 
 public class Main {
 
     public static void main(String[] args) {
         if (args.length > 0 && args[0].equalsIgnoreCase("server")) {
             startServer();
+        } else if (args.length > 0 && args[0].equalsIgnoreCase("client")) {
+            startClient(args);
         } else {
             startRepl();
         }
@@ -82,6 +82,19 @@ public class Main {
         } catch (IOException e) {
             System.err.println(
                     "Error closing database: " + e.getMessage());
+        }
+    }
+
+    private static void startClient(String[] args) {
+        String host = args.length > 1 ? args[1] : "localhost";
+        int port = args.length > 2
+                ? Integer.parseInt(args[2])
+                : 6379;
+
+        try {
+            new MiniDbClient(host, port).start();
+        } catch (IOException e) {
+            System.err.println("Client error: " + e.getMessage());
         }
     }
 }
