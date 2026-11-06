@@ -27,6 +27,23 @@ public class MiniDbClient {
 
             System.out.println(
                     "Connected to MiniDB at " + host + ":" + port);
+
+            serverWriter.println("AUTH secret123");
+
+            String authResponse = serverReader.readLine();
+
+            if (authResponse == null) {
+                System.out.println("Server closed the connection.");
+                return;
+            }
+
+            System.out.println(authResponse);
+
+            if (!authResponse.equals("OK")) {
+                System.out.println("Authentication failed.");
+                return;
+            }
+
             System.out.println("Type EXIT to quit.");
 
             while (true) {

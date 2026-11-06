@@ -21,7 +21,7 @@ class MiniDbServerTest {
     void handlesSetAndGetOverSocket() throws Exception {
         Path databaseFile = tempDir.resolve("server.db");
         Database database = new Database(databaseFile.toString());
-        MiniDbServer server = new MiniDbServer(0, database);
+        MiniDbServer server = new MiniDbServer(0, database, "secret123");
 
         Thread serverThread = new Thread(() -> {
             try {
@@ -42,11 +42,12 @@ class MiniDbServerTest {
         int port = server.getPort();
 
         try (Socket socket = new Socket("localhost", port);
-             PrintWriter writer = new PrintWriter(
-                     socket.getOutputStream(), true);
-             BufferedReader reader = new BufferedReader(
-                     new InputStreamReader(socket.getInputStream()))) {
-
+                PrintWriter writer = new PrintWriter(
+                        socket.getOutputStream(), true);
+                BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(socket.getInputStream()))) {
+            writer.println("AUTH secret123");
+            assertEquals("OK", reader.readLine());
             writer.println("SET name Mujah");
             assertEquals("OK", reader.readLine());
 

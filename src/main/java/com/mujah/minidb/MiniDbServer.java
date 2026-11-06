@@ -7,33 +7,40 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-
 public class MiniDbServer {
 
     private final int port;
     private final Database database;
+    private final String password;
     private ServerSocket serverSocket;
-    public MiniDbServer(int port, Database database) {
+
+    public MiniDbServer(int port, Database database, String password) {
         this.port = port;
         this.database = database;
+        this.password = password;
     }
 
     public void start() throws IOException {
-    serverSocket = new ServerSocket(port);
+        serverSocket = new ServerSocket(port);
 
-    System.out.println(
-            "MiniDB listening on port " + serverSocket.getLocalPort());
+        System.out.println(
+                "MiniDB listening on port " + serverSocket.getLocalPort());
 
-    while (true) {
-        Socket client = serverSocket.accept();
-        new Thread(() -> handleClient(client)).start();
+        while (true) {
+            Socket client = serverSocket.accept();
+            new Thread(() -> handleClient(client)).start();
+        }
     }
-}
 
-public int getPort() {
-    return serverSocket == null ? port : serverSocket.getLocalPort();
-}
+    public int getPort() {
+        return serverSocket == null
+                ? port
+                : serverSocket.getLocalPort();
+    }
+
     private void handleClient(Socket client) {
+        boolean authenticated = false;
+
         try (client;
              BufferedReader reader = new BufferedReader(
                      new InputStreamReader(client.getInputStream()));
@@ -43,8 +50,38 @@ public int getPort() {
             String line;
 
             while ((line = reader.readLine()) != null) {
-                String response = execute(line);
-                writer.println(response);
+                String command = line.trim();
+
+                if (command.equalsIgnoreCase("EXIT")
+                        || command.equalsIgnoreCase("QUIT")) {
+                    break;
+                }
+
+                if (command.equalsIgnoreCase("PING")) {
+                    writer.println("PONG");
+                    continue;
+                }
+
+                if (command.toUpperCase().startsWith("AUTH ")) {
+                    String[] parts = command.split("\\s+", 2);
+
+                    if (parts.length == 2
+                            && parts[1].equals(password)) {
+                        authenticated = true;
+                        writer.println("OK");
+                    } else {
+                        writer.println("ERR invalid password");
+                    }
+
+                    continue;
+                }
+
+                if (!authenticated) {
+                    writer.println("ERR AUTH required");
+                    continue;
+                }
+
+                writer.println(execute(command));
             }
         } catch (IOException e) {
             System.err.println(
@@ -118,9 +155,9 @@ public int getPort() {
                     yield ttl == null ? "NULL" : String.valueOf(ttl);
                 }
                 case "KEYS" -> String.join(
-                        ",", database.keys(
+                        ",",
+                        database.keys(
                                 parts.length > 1 ? parts[1] : "*"));
-                case "PING" -> "PONG";
                 default -> "ERROR unknown command: " + parts[0];
             };
         } catch (Exception e) {

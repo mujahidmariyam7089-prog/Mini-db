@@ -21,8 +21,7 @@ public class Main {
 
         try {
             db = new Database("data.db");
-            MiniDbServer server = new MiniDbServer(6379, db);
-
+            MiniDbServer server = new MiniDbServer(6379, db, "secret123");
             System.out.println("MiniDB server mode. Ctrl+C to stop.");
             server.start();
         } catch (IOException e) {
