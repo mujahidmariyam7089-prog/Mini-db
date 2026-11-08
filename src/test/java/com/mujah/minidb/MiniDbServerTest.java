@@ -42,12 +42,14 @@ class MiniDbServerTest {
         int port = server.getPort();
 
         try (Socket socket = new Socket("localhost", port);
-                PrintWriter writer = new PrintWriter(
-                        socket.getOutputStream(), true);
-                BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(socket.getInputStream()))) {
+             PrintWriter writer = new PrintWriter(
+                     socket.getOutputStream(), true);
+             BufferedReader reader = new BufferedReader(
+                     new InputStreamReader(socket.getInputStream()))) {
+
             writer.println("AUTH secret123");
             assertEquals("OK", reader.readLine());
+
             writer.println("SET name Mujah");
             assertEquals("OK", reader.readLine());
 

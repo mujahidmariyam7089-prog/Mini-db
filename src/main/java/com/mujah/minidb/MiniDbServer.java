@@ -42,10 +42,10 @@ public class MiniDbServer {
         boolean authenticated = false;
 
         try (client;
-             BufferedReader reader = new BufferedReader(
-                     new InputStreamReader(client.getInputStream()));
-             PrintWriter writer = new PrintWriter(
-                     client.getOutputStream(), true)) {
+                BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(client.getInputStream()));
+                PrintWriter writer = new PrintWriter(
+                        client.getOutputStream(), true)) {
 
             String line;
 
@@ -74,6 +74,11 @@ public class MiniDbServer {
                     }
 
                     continue;
+                }
+                if (command.equalsIgnoreCase("SHUTDOWN")) {
+                    writer.println("OK shutting down");
+                    stop();
+                    break;
                 }
 
                 if (!authenticated) {
@@ -124,7 +129,8 @@ public class MiniDbServer {
                         yield "ERROR usage: EXISTS key";
                     }
                     yield database.exists(parts[1])
-                            ? "TRUE" : "FALSE";
+                            ? "TRUE"
+                            : "FALSE";
                 }
                 case "COUNT" -> String.valueOf(database.count());
                 case "INCR" -> {
@@ -162,6 +168,17 @@ public class MiniDbServer {
             };
         } catch (Exception e) {
             return "ERROR " + e.getMessage();
+        }
+    }
+
+    public synchronized void stop() {
+        if (serverSocket != null && !serverSocket.isClosed()) {
+            try {
+                serverSocket.close();
+            } catch (IOException e) {
+                System.err.println(
+                        "Error stopping server: " + e.getMessage());
+            }
         }
     }
 }

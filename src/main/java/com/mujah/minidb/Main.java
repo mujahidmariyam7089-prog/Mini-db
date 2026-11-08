@@ -22,6 +22,9 @@ public class Main {
         try {
             db = new Database("data.db");
             MiniDbServer server = new MiniDbServer(6379, db, "secret123");
+
+            Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
+
             System.out.println("MiniDB server mode. Ctrl+C to stop.");
             server.start();
         } catch (IOException e) {
