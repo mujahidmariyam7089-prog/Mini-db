@@ -18,18 +18,19 @@ public class MiniDbClient {
 
     public void start() throws IOException {
         try (Socket socket = new Socket(host, port);
-             BufferedReader serverReader = new BufferedReader(
-                     new InputStreamReader(socket.getInputStream()));
-             PrintWriter serverWriter = new PrintWriter(
-                     socket.getOutputStream(), true);
-             BufferedReader keyboard = new BufferedReader(
-                     new InputStreamReader(System.in))) {
+                BufferedReader serverReader = new BufferedReader(
+                        new InputStreamReader(socket.getInputStream()));
+                PrintWriter serverWriter = new PrintWriter(
+                        socket.getOutputStream(), true);
+                BufferedReader keyboard = new BufferedReader(
+                        new InputStreamReader(System.in))) {
 
             System.out.println(
                     "Connected to MiniDB at " + host + ":" + port);
 
             serverWriter.println("AUTH secret123");
-
+            serverWriter.println("STATS");
+            System.out.println(serverReader.readLine());
             String authResponse = serverReader.readLine();
 
             if (authResponse == null) {

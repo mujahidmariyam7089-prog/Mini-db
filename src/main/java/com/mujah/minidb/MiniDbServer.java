@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class MiniDbServer {
 
@@ -13,6 +14,7 @@ public class MiniDbServer {
     private final Database database;
     private final String password;
     private ServerSocket serverSocket;
+    private final AtomicInteger clientCount = new AtomicInteger();
 
     public MiniDbServer(int port, Database database, String password) {
         this.port = port;
@@ -164,6 +166,8 @@ public class MiniDbServer {
                         ",",
                         database.keys(
                                 parts.length > 1 ? parts[1] : "*"));
+                case "STATS" -> "connected_clients=" + clientCount
+                        + ",keys=" + database.count();
                 default -> "ERROR unknown command: " + parts[0];
             };
         } catch (Exception e) {
