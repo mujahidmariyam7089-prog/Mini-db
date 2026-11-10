@@ -61,7 +61,7 @@ public class MiniDbClient {
                 }
 
                 serverWriter.println(input);
-
+                System.out.println("Type HELP for commands.");
                 String response = serverReader.readLine();
 
                 if (response == null) {

@@ -166,6 +166,24 @@ public class MiniDbServer {
                         ",",
                         database.keys(
                                 parts.length > 1 ? parts[1] : "*"));
+                case "HELP" -> """
+                        Commands:
+                        AUTH password
+                        SET key value
+                        GET key
+                        DELETE key
+                        EXISTS key
+                        COUNT
+                        INCR key
+                        DECR key
+                        EXPIRE key seconds
+                        TTL key
+                        KEYS pattern
+                        STATS
+                        PING
+                        SHUTDOWN
+                        EXIT
+                        """;
                 case "STATS" -> "connected_clients=" + clientCount
                         + ",keys=" + database.count();
                 default -> "ERROR unknown command: " + parts[0];
