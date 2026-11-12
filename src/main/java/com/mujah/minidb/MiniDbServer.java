@@ -15,6 +15,7 @@ public class MiniDbServer {
     private final String password;
     private ServerSocket serverSocket;
     private final AtomicInteger clientCount = new AtomicInteger();
+    private final AtomicInteger commandCount = new AtomicInteger();
 
     public MiniDbServer(int port, Database database, String password) {
         this.port = port;
@@ -42,6 +43,7 @@ public class MiniDbServer {
 
     private void handleClient(Socket client) {
         boolean authenticated = false;
+        clientCount.incrementAndGet();
 
         try (client;
                 BufferedReader reader = new BufferedReader(
@@ -88,7 +90,10 @@ public class MiniDbServer {
                     continue;
                 }
 
-                writer.println(execute(command));
+                commandCount.incrementAndGet();
+
+                String response = execute(command);
+                writer.println(response);
             }
         } catch (IOException e) {
             System.err.println(
@@ -116,6 +121,7 @@ public class MiniDbServer {
                     if (parts.length < 2) {
                         yield "ERROR usage: GET key";
                     }
+
                     String value = database.get(parts[1]);
                     yield value == null ? "NULL" : value;
                 }
@@ -182,10 +188,27 @@ public class MiniDbServer {
                         STATS
                         PING
                         SHUTDOWN
+                        GETDEL key
+                        STATS - show connected clients, commands processed, and key count
                         EXIT
                         """;
                 case "STATS" -> "connected_clients=" + clientCount
+                        + ",commands_processed=" + commandCount.get()
                         + ",keys=" + database.count();
+                case "GETDEL" -> {
+                    if (parts.length < 2) {
+                        yield "ERROR usage: GETDEL key";
+                    }
+
+                    String value = database.get(parts[1]);
+
+                    if (value == null) {
+                        yield "NULL";
+                    }
+
+                    database.delete(parts[1]);
+                    yield value;
+                }
                 default -> "ERROR unknown command: " + parts[0];
             };
         } catch (Exception e) {

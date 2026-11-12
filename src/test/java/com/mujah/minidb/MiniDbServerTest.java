@@ -56,10 +56,15 @@ class MiniDbServerTest {
             writer.println("GET name");
             assertEquals("Mujah", reader.readLine());
 
+            writer.println("STATS");
+            String stats = reader.readLine();
+            System.out.println(stats);
+
             writer.println("PING");
             assertEquals("PONG", reader.readLine());
+        } finally {
+            server.stop();
+            database.close();
         }
-
-        database.close();
     }
 }
