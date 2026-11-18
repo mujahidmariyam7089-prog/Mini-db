@@ -189,6 +189,7 @@ public class MiniDbServer {
                         PING
                         SHUTDOWN
                         GETDEL key
+                        FLUSHALL - delete all keys
                         STATS - show connected clients, commands processed, and key count
                         EXIT
                         """;
@@ -208,6 +209,13 @@ public class MiniDbServer {
 
                     database.delete(parts[1]);
                     yield value;
+                }
+                case "FLUSHALL" -> {
+                    for (String key : database.keys("*")) {
+                        database.delete(key);
+                    }
+
+                    yield "OK";
                 }
                 default -> "ERROR unknown command: " + parts[0];
             };
