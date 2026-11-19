@@ -191,6 +191,7 @@ public class MiniDbServer {
                         GETDEL key
                         FLUSHALL - delete all keys
                         STATS - show connected clients, commands processed, and key count
+                        TYPE key - show string or none
                         EXIT
                         """;
                 case "STATS" -> "connected_clients=" + clientCount
@@ -216,6 +217,14 @@ public class MiniDbServer {
                     }
 
                     yield "OK";
+                }
+                case "TYPE" -> {
+                    if (parts.length < 2) {
+                        yield "ERROR usage: TYPE key";
+                    }
+
+                    String value = database.get(parts[1]);
+                    yield value == null ? "none" : "string";
                 }
                 default -> "ERROR unknown command: " + parts[0];
             };
