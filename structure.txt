@@ -1,16 +1,50 @@
 mini-db/
-   .gitignore
-    README.md
-    pom.xml
-    src/
-      main/
-        java/
-          com/
-            mujah/
-              minidb/
-               Main.java 
-               Database.java
-               Page.java
-               BPplusTree.java
-               DiskManager.java
-               CommandParser.java
+├── .gitignore
+├── README.md
+├── pom.xml
+├── Dockerfile
+├── .dockerignore
+├── docs/
+│   └── architecture.md
+├── src/
+│   ├── main/
+│   │   ├── java/
+│   │   │   └── com/
+│   │   │       └── mujah/
+│   │   │           └── minidb/
+│   │   │               ├── Main.java
+│   │   │               ├── Database.java
+│   │   │               ├── Page.java
+│   │   │               ├── BPlusTree.java
+│   │   │               ├── DiskBPlusTree.java
+│   │   │               ├── DiskManager.java
+│   │   │               ├── PageFile.java
+│   │   │               ├── CommandParser.java
+│   │   │               ├── WalManager.java
+│   │   │               ├── MiniDbServer.java
+│   │   │               ├── MiniDbClient.java
+│   │   │               ├── Codec.java
+│   │   │               ├── Transaction.java
+│   │   │               ├── ReplicationManager.java
+│   │   │               └── config/
+│   │   │                   └── ServerConfig.java
+│   │   └── resources/
+│   │       └── logback.xml
+│   └── test/
+│       └── java/
+│           └── com/
+│               └── mujah/
+│                   └── minidb/
+│                       ├── DatabaseTest.java
+│                       ├── PageTest.java
+│                       ├── PageFileTest.java
+│                       ├── BPlusTreeTest.java
+│                       ├── DiskBPlusTreeTest.java
+│                       ├── MiniDbServerTest.java
+│                       ├── CodecTest.java
+│                       ├── TransactionTest.java
+│                       ├── WalManagerTest.java
+│                       └── ReplicationTest.java
+└── .github/
+    └── workflows/
+        └── ci.yml
