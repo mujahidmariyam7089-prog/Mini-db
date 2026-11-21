@@ -192,6 +192,7 @@ public class MiniDbServer {
                         FLUSHALL - delete all keys
                         STATS - show connected clients, commands processed, and key count
                         TYPE key - show string or none
+                        APPEND key value - add value to the end of an existing value
                         EXIT
                         """;
                 case "STATS" -> "connected_clients=" + clientCount
@@ -225,6 +226,17 @@ public class MiniDbServer {
 
                     String value = database.get(parts[1]);
                     yield value == null ? "none" : "string";
+                }
+                case "APPEND" -> {
+                    if (parts.length < 3) {
+                        yield "ERROR usage: APPEND key value";
+                    }
+
+                    String current = database.get(parts[1]);
+                    String updated = (current == null ? "" : current) + parts[2];
+
+                    database.set(parts[1], updated);
+                    yield updated;
                 }
                 default -> "ERROR unknown command: " + parts[0];
             };

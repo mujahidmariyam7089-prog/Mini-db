@@ -2,25 +2,30 @@ package com.mujah.minidb;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class Database implements AutoCloseable {
+
     private final String fileName;
     private final DiskManager diskManager;
     private final DiskBPlusTree index;
     private final WalManager wal;
     private final ReentrantLock lock = new ReentrantLock();
     private final Map<String, Long> expiryTimes = new HashMap<>();
-    private final java.util.concurrent.ScheduledExecutorService expiryScheduler = java.util.concurrent.Executors
-            .newSingleThreadScheduledExecutor(
-                    runnable -> {
-                        Thread thread = new Thread(runnable, "mini-db-expiry");
-                        thread.setDaemon(true);
-                        return thread;
-                    });
+    private final ScheduledExecutorService expiryScheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "mini-db-expiry");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    private static final int WAL_COMPACTION_THRESHOLD = 100;
+    private int operationsSinceCompaction = 0;
 
     public Database(String fileName) throws IOException {
         this.fileName = fileName;
@@ -77,9 +82,16 @@ public class Database implements AutoCloseable {
     }
 
     public void set(String key, String value) throws IOException {
-        wal.append("SET " + key + "=" + value);
-        applySet(key, value);
-        wal.clear();
+        lock.lock();
+
+        try {
+            wal.append("SET " + key + "=" + value);
+            applySet(key, value);
+            wal.clear();
+            maybeCompactWal();
+        } finally {
+            lock.unlock();
+        }
     }
 
     public String get(String key) throws IOException {
@@ -213,9 +225,16 @@ public class Database implements AutoCloseable {
     }
 
     public void delete(String key) throws IOException {
-        wal.append("DEL " + key);
-        applyDelete(key);
-        wal.clear();
+        lock.lock();
+
+        try {
+            wal.append("DEL " + key);
+            applyDelete(key);
+            wal.clear();
+            maybeCompactWal();
+        } finally {
+            lock.unlock();
+        }
     }
 
     public List<String> listAll() throws IOException {
@@ -333,10 +352,10 @@ public class Database implements AutoCloseable {
             wal.append("EXPIRE " + key + "=" + expiresAt);
             expiryTimes.put(key, expiresAt);
             wal.clear();
+            maybeCompactWal();
         } finally {
             lock.unlock();
         }
-
     }
 
     public Long ttl(String key) throws IOException {
@@ -404,4 +423,14 @@ public class Database implements AutoCloseable {
 
         return result;
     }
+
+    private void maybeCompactWal() throws IOException {
+        operationsSinceCompaction++;
+
+        if (operationsSinceCompaction >= WAL_COMPACTION_THRESHOLD) {
+            compact();
+            operationsSinceCompaction = 0;
+        }
+    }
+
 }

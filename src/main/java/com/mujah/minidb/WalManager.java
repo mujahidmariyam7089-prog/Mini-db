@@ -6,7 +6,7 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
 
-public class WalManager implements AutoCloseable{
+public class WalManager implements AutoCloseable {
 
     private final RandomAccessFile file;
 
@@ -17,6 +17,7 @@ public class WalManager implements AutoCloseable{
     public void append(String record) throws IOException {
         file.seek(file.length());
         file.writeBytes(record + "\n");
+        file.getFD().sync();
     }
 
     public List<String> readAll() throws IOException {
