@@ -7,6 +7,8 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MiniDbServer {
 
@@ -51,6 +53,9 @@ public class MiniDbServer {
                 PrintWriter writer = new PrintWriter(
                         client.getOutputStream(), true)) {
 
+            boolean inTransaction = false;
+            List<String> queuedCommands = new ArrayList<>();
+
             String line;
 
             while ((line = reader.readLine()) != null) {
@@ -79,6 +84,7 @@ public class MiniDbServer {
 
                     continue;
                 }
+
                 if (command.equalsIgnoreCase("SHUTDOWN")) {
                     writer.println("OK shutting down");
                     stop();
@@ -92,7 +98,43 @@ public class MiniDbServer {
 
                 commandCount.incrementAndGet();
 
-                String response = execute(command);
+                String firstWord = command.split("\\s+")[0].toUpperCase();
+                String response;
+
+                if (firstWord.equals("MULTI")) {
+                    if (inTransaction) {
+                        response = "ERR MULTI cannot be nested";
+                    } else {
+                        inTransaction = true;
+                        queuedCommands.clear();
+                        response = "OK";
+                    }
+                } else if (firstWord.equals("EXEC")) {
+                    if (!inTransaction) {
+                        response = "ERR EXEC without MULTI";
+                    } else {
+                        System.out.println("Executing "
+                                + queuedCommands.size() + " queued commands");
+
+                        response = executeQueuedCommands(queuedCommands);
+                        inTransaction = false;
+                        queuedCommands.clear();
+                    }
+                } else if (firstWord.equals("DISCARD")) {
+                    if (!inTransaction) {
+                        response = "ERR DISCARD without MULTI";
+                    } else {
+                        inTransaction = false;
+                        queuedCommands.clear();
+                        response = "OK";
+                    }
+                } else if (inTransaction) {
+                    queuedCommands.add(command);
+                    response = "QUEUED";
+                } else {
+                    response = execute(command);
+                }
+
                 writer.println(response);
             }
         } catch (IOException e) {
@@ -243,6 +285,28 @@ public class MiniDbServer {
         } catch (Exception e) {
             return "ERROR " + e.getMessage();
         }
+    }
+
+    private String executeQueuedCommands(
+            List<String> queuedCommands) {
+
+        if (queuedCommands.isEmpty()) {
+            return "OK";
+        }
+
+        StringBuilder output = new StringBuilder();
+
+        for (int i = 0; i < queuedCommands.size(); i++) {
+            String queuedCommand = queuedCommands.get(i);
+
+            if (i > 0) {
+                output.append(" | ");
+            }
+
+            output.append(execute(queuedCommand));
+        }
+
+        return output.toString();
     }
 
     public synchronized void stop() {

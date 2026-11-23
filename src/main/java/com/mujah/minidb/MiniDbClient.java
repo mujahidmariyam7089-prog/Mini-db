@@ -29,8 +29,6 @@ public class MiniDbClient {
                     "Connected to MiniDB at " + host + ":" + port);
 
             serverWriter.println("AUTH secret123");
-            serverWriter.println("STATS");
-            System.out.println(serverReader.readLine());
             String authResponse = serverReader.readLine();
 
             if (authResponse == null) {
@@ -40,7 +38,7 @@ public class MiniDbClient {
 
             System.out.println(authResponse);
 
-            if (!authResponse.equals("OK")) {
+            if (!"OK".equals(authResponse)) {
                 System.out.println("Authentication failed.");
                 return;
             }
@@ -61,7 +59,6 @@ public class MiniDbClient {
                 }
 
                 serverWriter.println(input);
-                System.out.println("Type HELP for commands.");
                 String response = serverReader.readLine();
 
                 if (response == null) {
