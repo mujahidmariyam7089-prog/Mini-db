@@ -129,8 +129,13 @@ public class MiniDbServer {
                         response = "OK";
                     }
                 } else if (inTransaction) {
-                    queuedCommands.add(command);
-                    response = "QUEUED";
+                    if (isValidTransactionCommand(command)) {
+                        queuedCommands.add(command);
+                        response = "QUEUED";
+                    } else {
+                        response = "ERR unknown command: "
+                                + command.split("\\s+")[0];
+                    }
                 } else {
                     response = execute(command);
                 }
@@ -318,5 +323,17 @@ public class MiniDbServer {
                         "Error stopping server: " + e.getMessage());
             }
         }
+    }
+
+    private boolean isValidTransactionCommand(String command) {
+        String firstWord = command.split("\\s+")[0].toUpperCase();
+
+        return switch (firstWord) {
+            case "SET", "GET", "DELETE", "EXISTS", "COUNT",
+                    "INCR", "DECR", "EXPIRE", "TTL", "KEYS",
+                    "GETDEL", "TYPE", "APPEND", "STATS" ->
+                true;
+            default -> false;
+        };
     }
 }
