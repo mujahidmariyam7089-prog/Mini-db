@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WalManagerTest {
@@ -76,6 +77,28 @@ class WalManagerTest {
 
             assertEquals(1, records.size());
             assertEquals("SET new=2", records.get(0));
+        }
+    }
+
+    @Test
+    void shouldDetectCorruptedWalRecord() throws IOException {
+        Path walFile = tempDir.resolve("corrupt.wal");
+
+        try (WalManager wal = new WalManager(walFile.toString())) {
+            wal.append("SET name=Alice");
+        }
+
+        java.nio.file.Files.writeString(
+                walFile,
+                "999999|SET name=Alice\n");
+
+        try (WalManager wal = new WalManager(walFile.toString())) {
+            IOException exception = assertThrows(
+                    IOException.class,
+                    wal::readAll);
+
+            assertTrue(exception.getMessage()
+                    .contains("checksum mismatch"));
         }
     }
 }

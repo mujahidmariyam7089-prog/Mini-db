@@ -38,8 +38,14 @@ public class Database implements AutoCloseable {
     }
 
     private void recoverFromWal() throws IOException {
-        List<String> records = wal.readAll();
+        List<String> records;
 
+        try {
+            records = wal.readAll();
+        } catch (IOException e) {
+            throw new IOException(
+                    "WAL recovery failed: " + e.getMessage(), e);
+        }
         for (String record : records) {
             if (record.startsWith("SET ")) {
                 String body = record.substring(4);
