@@ -4,6 +4,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
+import com.mujah.minidb.config.ServerConfig;
+
 public class Main {
 
     public static void main(String[] args) {
@@ -20,13 +22,22 @@ public class Main {
         Database db = null;
 
         try {
-            db = new Database("data.db");
-            MiniDbServer server = new MiniDbServer(6379, db, "secret123");
+            ServerConfig config = ServerConfig.fromEnvironment();
 
-            Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
+            db = new Database(config.dataFile());
+            MiniDbServer server = new MiniDbServer(
+                    config.port(), db, config.password());
+
+            final Database database = db;
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                server.stop();
+                closeQuietly(database);
+            }));
 
             System.out.println("MiniDB server mode. Ctrl+C to stop.");
             server.start();
+        } catch (IllegalStateException e) {
+            System.err.println("Config error: " + e.getMessage());
         } catch (IOException e) {
             System.err.println("Server error: " + e.getMessage());
 

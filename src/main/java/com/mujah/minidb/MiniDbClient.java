@@ -28,7 +28,14 @@ public class MiniDbClient {
             System.out.println(
                     "Connected to MiniDB at " + host + ":" + port);
 
-            serverWriter.println("AUTH secret123");
+            String password = System.getenv("MINIDB_PASSWORD");
+
+            if (password == null || password.isBlank()) {
+                System.out.println("Set MINIDB_PASSWORD first.");
+                return;
+            }
+
+            serverWriter.println("AUTH " + password);
             String authResponse = serverReader.readLine();
 
             if (authResponse == null) {
