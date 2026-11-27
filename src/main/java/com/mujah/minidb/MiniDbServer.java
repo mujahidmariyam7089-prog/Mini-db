@@ -6,18 +6,32 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class MiniDbServer {
+    private static final Logger log =
+            LoggerFactory.getLogger(MiniDbServer.class);
 
     private final int port;
     private final Database database;
     private final String password;
     private ServerSocket serverSocket;
+    private volatile boolean running = true;
+
+    private final long startTimeMillis = System.currentTimeMillis();
     private final AtomicInteger clientCount = new AtomicInteger();
     private final AtomicInteger commandCount = new AtomicInteger();
+    private final AtomicLong errorCount = new AtomicLong();
+    private final ConcurrentHashMap<String, AtomicLong> commandStats =
+            new ConcurrentHashMap<>();
 
     public MiniDbServer(int port, Database database, String password) {
         this.port = port;
@@ -27,14 +41,21 @@ public class MiniDbServer {
 
     public void start() throws IOException {
         serverSocket = new ServerSocket(port);
+        log.info("MiniDB listening on port {}",
+                serverSocket.getLocalPort());
 
-        System.out.println(
-                "MiniDB listening on port " + serverSocket.getLocalPort());
-
-        while (true) {
-            Socket client = serverSocket.accept();
-            new Thread(() -> handleClient(client)).start();
+        while (running) {
+            try {
+                Socket client = serverSocket.accept();
+                new Thread(() -> handleClient(client)).start();
+            } catch (SocketException e) {
+                if (running) {
+                    throw e;
+                }
+            }
         }
+
+        log.info("Server stopped accepting connections");
     }
 
     public int getPort() {
@@ -46,6 +67,7 @@ public class MiniDbServer {
     private void handleClient(Socket client) {
         boolean authenticated = false;
         clientCount.incrementAndGet();
+        log.info("Client connected: {}", client.getRemoteSocketAddress());
 
         try (client;
                 BufferedReader reader = new BufferedReader(
@@ -60,6 +82,10 @@ public class MiniDbServer {
 
             while ((line = reader.readLine()) != null) {
                 String command = line.trim();
+
+                if (command.isEmpty()) {
+                    continue;
+                }
 
                 if (command.equalsIgnoreCase("EXIT")
                         || command.equalsIgnoreCase("QUIT")) {
@@ -79,16 +105,12 @@ public class MiniDbServer {
                         authenticated = true;
                         writer.println("OK");
                     } else {
+                        log.warn("Failed AUTH from {}",
+                                client.getRemoteSocketAddress());
                         writer.println("ERR invalid password");
                     }
 
                     continue;
-                }
-
-                if (command.equalsIgnoreCase("SHUTDOWN")) {
-                    writer.println("OK shutting down");
-                    stop();
-                    break;
                 }
 
                 if (!authenticated) {
@@ -96,9 +118,21 @@ public class MiniDbServer {
                     continue;
                 }
 
+                if (command.equalsIgnoreCase("SHUTDOWN")) {
+                    log.info("SHUTDOWN requested by {}",
+                            client.getRemoteSocketAddress());
+                    writer.println("OK shutting down");
+                    stop();
+                    break;
+                }
+
                 commandCount.incrementAndGet();
 
                 String firstWord = command.split("\\s+")[0].toUpperCase();
+                commandStats
+                        .computeIfAbsent(firstWord, k -> new AtomicLong())
+                        .incrementAndGet();
+
                 String response;
 
                 if (firstWord.equals("MULTI")) {
@@ -113,8 +147,8 @@ public class MiniDbServer {
                     if (!inTransaction) {
                         response = "ERR EXEC without MULTI";
                     } else {
-                        System.out.println("Executing "
-                                + queuedCommands.size() + " queued commands");
+                        log.debug("Executing {} queued commands",
+                                queuedCommands.size());
 
                         response = executeQueuedCommands(queuedCommands);
                         inTransaction = false;
@@ -133,19 +167,46 @@ public class MiniDbServer {
                         queuedCommands.add(command);
                         response = "QUEUED";
                     } else {
-                        response = "ERR unknown command: "
-                                + command.split("\\s+")[0];
+                        response = "ERR unknown command: " + firstWord;
                     }
                 } else {
                     response = execute(command);
                 }
 
+                if (response.startsWith("ERR")) {
+                    errorCount.incrementAndGet();
+                }
+
                 writer.println(response);
             }
         } catch (IOException e) {
-            System.err.println(
-                    "Client error: " + e.getMessage());
+            if (running) {
+                log.error("Client error: {}", e.getMessage());
+            }
+        } finally {
+            clientCount.decrementAndGet();
+            log.info("Client disconnected");
         }
+    }
+
+   private String buildInfo() throws IOException {
+        long uptimeSeconds =
+                (System.currentTimeMillis() - startTimeMillis) / 1000;
+
+        StringBuilder info = new StringBuilder();
+        info.append("uptime_seconds=").append(uptimeSeconds);
+        info.append(",connected_clients=").append(clientCount.get());
+        info.append(",total_commands=").append(commandCount.get());
+        info.append(",errors=").append(errorCount.get());
+        info.append(",keys=").append(database.count());
+
+        commandStats.forEach((name, count) ->
+                info.append(",cmd_")
+                        .append(name.toLowerCase())
+                        .append("=")
+                        .append(count.get()));
+
+        return info.toString();
     }
 
     private String execute(String command) {
@@ -183,9 +244,7 @@ public class MiniDbServer {
                     if (parts.length < 2) {
                         yield "ERROR usage: EXISTS key";
                     }
-                    yield database.exists(parts[1])
-                            ? "TRUE"
-                            : "FALSE";
+                    yield database.exists(parts[1]) ? "TRUE" : "FALSE";
                 }
                 case "COUNT" -> String.valueOf(database.count());
                 case "INCR" -> {
@@ -204,8 +263,7 @@ public class MiniDbServer {
                     if (parts.length < 3) {
                         yield "ERROR usage: EXPIRE key seconds";
                     }
-                    database.expire(
-                            parts[1], Long.parseLong(parts[2]));
+                    database.expire(parts[1], Long.parseLong(parts[2]));
                     yield "OK";
                 }
                 case "TTL" -> {
@@ -217,8 +275,7 @@ public class MiniDbServer {
                 }
                 case "KEYS" -> String.join(
                         ",",
-                        database.keys(
-                                parts.length > 1 ? parts[1] : "*"));
+                        database.keys(parts.length > 1 ? parts[1] : "*"));
                 case "HELP" -> """
                         Commands:
                         AUTH password
@@ -232,19 +289,21 @@ public class MiniDbServer {
                         EXPIRE key seconds
                         TTL key
                         KEYS pattern
-                        STATS
-                        PING
-                        SHUTDOWN
                         GETDEL key
                         FLUSHALL - delete all keys
-                        STATS - show connected clients, commands processed, and key count
+                        STATS - connected clients, commands processed, key count
+                        INFO - uptime, clients, errors, per-command counts
                         TYPE key - show string or none
-                        APPEND key value - add value to the end of an existing value
+                        APPEND key value - add value to the end of a value
+                        MULTI / EXEC / DISCARD - transactions
+                        PING
+                        SHUTDOWN
                         EXIT
                         """;
-                case "STATS" -> "connected_clients=" + clientCount
+                case "STATS" -> "connected_clients=" + clientCount.get()
                         + ",commands_processed=" + commandCount.get()
                         + ",keys=" + database.count();
+                case "INFO" -> buildInfo();
                 case "GETDEL" -> {
                     if (parts.length < 2) {
                         yield "ERROR usage: GETDEL key";
@@ -280,7 +339,8 @@ public class MiniDbServer {
                     }
 
                     String current = database.get(parts[1]);
-                    String updated = (current == null ? "" : current) + parts[2];
+                    String updated =
+                            (current == null ? "" : current) + parts[2];
 
                     database.set(parts[1], updated);
                     yield updated;
@@ -292,9 +352,7 @@ public class MiniDbServer {
         }
     }
 
-    private String executeQueuedCommands(
-            List<String> queuedCommands) {
-
+    private String executeQueuedCommands(List<String> queuedCommands) {
         if (queuedCommands.isEmpty()) {
             return "OK";
         }
@@ -302,25 +360,25 @@ public class MiniDbServer {
         StringBuilder output = new StringBuilder();
 
         for (int i = 0; i < queuedCommands.size(); i++) {
-            String queuedCommand = queuedCommands.get(i);
-
             if (i > 0) {
                 output.append(" | ");
             }
 
-            output.append(execute(queuedCommand));
+            output.append(execute(queuedCommands.get(i)));
         }
 
         return output.toString();
     }
 
     public synchronized void stop() {
+        running = false;
+
         if (serverSocket != null && !serverSocket.isClosed()) {
             try {
                 serverSocket.close();
+                log.info("Server socket closed");
             } catch (IOException e) {
-                System.err.println(
-                        "Error stopping server: " + e.getMessage());
+                log.warn("Error stopping server: {}", e.getMessage());
             }
         }
     }
@@ -331,7 +389,7 @@ public class MiniDbServer {
         return switch (firstWord) {
             case "SET", "GET", "DELETE", "EXISTS", "COUNT",
                     "INCR", "DECR", "EXPIRE", "TTL", "KEYS",
-                    "GETDEL", "TYPE", "APPEND", "STATS" ->
+                    "GETDEL", "TYPE", "APPEND", "STATS", "INFO" ->
                 true;
             default -> false;
         };
