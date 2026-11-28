@@ -67,4 +67,56 @@ class MiniDbServerTest {
             database.close();
         }
     }
+    private MiniDbServer startServer(Database database, int maxClients)
+        throws InterruptedException {
+    MiniDbServer server =
+            new MiniDbServer(0, database, "secret123", maxClients);
+
+    Thread serverThread = new Thread(() -> {
+        try {
+            server.start();
+        } catch (IOException ignored) {
+        }
+    });
+
+    serverThread.setDaemon(true);
+    serverThread.start();
+
+    long deadline = System.currentTimeMillis() + 3000;
+
+    while (server.getPort() == 0
+            && System.currentTimeMillis() < deadline) {
+        Thread.sleep(10);
+    }
+
+    return server;
+}
+
+@Test
+void shouldRejectClientsOverLimit() throws Exception {
+    Database database = new Database(
+            tempDir.resolve("limit.db").toString());
+    MiniDbServer server = startServer(database, 1);
+
+    try (Socket first = new Socket("localhost", server.getPort());
+         PrintWriter firstWriter = new PrintWriter(
+                 first.getOutputStream(), true);
+         BufferedReader firstReader = new BufferedReader(
+                 new InputStreamReader(first.getInputStream()))) {
+
+        firstWriter.println("PING");
+        assertEquals("PONG", firstReader.readLine());
+
+        try (Socket second = new Socket("localhost", server.getPort());
+             BufferedReader secondReader = new BufferedReader(
+                     new InputStreamReader(second.getInputStream()))) {
+
+            assertEquals("ERR max clients reached",
+                    secondReader.readLine());
+        }
+    } finally {
+        server.stop();
+        database.close();
+    }
+}
 }

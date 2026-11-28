@@ -7,9 +7,13 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -20,10 +24,15 @@ public class MiniDbServer {
     private static final Logger log =
             LoggerFactory.getLogger(MiniDbServer.class);
 
+    private static final int DEFAULT_MAX_CLIENTS = 100;
+    private static final int IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+
     private final int port;
     private final Database database;
     private final String password;
-    private ServerSocket serverSocket;
+    private final int maxClients;
+    private final ExecutorService clientPool;
+    private volatile ServerSocket serverSocket;
     private volatile boolean running = true;
 
     private final long startTimeMillis = System.currentTimeMillis();
@@ -34,9 +43,16 @@ public class MiniDbServer {
             new ConcurrentHashMap<>();
 
     public MiniDbServer(int port, Database database, String password) {
+        this(port, database, password, DEFAULT_MAX_CLIENTS);
+    }
+
+    public MiniDbServer(int port, Database database,
+                        String password, int maxClients) {
         this.port = port;
         this.database = database;
         this.password = password;
+        this.maxClients = maxClients;
+        this.clientPool = Executors.newFixedThreadPool(maxClients);
     }
 
     public void start() throws IOException {
@@ -47,7 +63,15 @@ public class MiniDbServer {
         while (running) {
             try {
                 Socket client = serverSocket.accept();
-                new Thread(() -> handleClient(client)).start();
+
+                if (clientCount.get() >= maxClients) {
+                    rejectClient(client);
+                    continue;
+                }
+
+                client.setSoTimeout(IDLE_TIMEOUT_MS);
+                clientCount.incrementAndGet();
+                clientPool.submit(() -> handleClient(client));
             } catch (SocketException e) {
                 if (running) {
                     throw e;
@@ -58,15 +82,26 @@ public class MiniDbServer {
         log.info("Server stopped accepting connections");
     }
 
+    private void rejectClient(Socket client) {
+        log.warn("Rejecting client {}, server full",
+                client.getRemoteSocketAddress());
+
+        try (client;
+                PrintWriter out = new PrintWriter(
+                        client.getOutputStream(), true)) {
+            out.println("ERR max clients reached");
+        } catch (IOException e) {
+            log.debug("Error rejecting client: {}", e.getMessage());
+        }
+    }
+
     public int getPort() {
-        return serverSocket == null
-                ? port
-                : serverSocket.getLocalPort();
+        ServerSocket socket = serverSocket;
+        return socket == null ? port : socket.getLocalPort();
     }
 
     private void handleClient(Socket client) {
         boolean authenticated = false;
-        clientCount.incrementAndGet();
         log.info("Client connected: {}", client.getRemoteSocketAddress());
 
         try (client;
@@ -122,7 +157,7 @@ public class MiniDbServer {
                     log.info("SHUTDOWN requested by {}",
                             client.getRemoteSocketAddress());
                     writer.println("OK shutting down");
-                    stop();
+                    new Thread(this::stop).start();
                     break;
                 }
 
@@ -179,6 +214,8 @@ public class MiniDbServer {
 
                 writer.println(response);
             }
+        } catch (SocketTimeoutException e) {
+            log.info("Closing idle client");
         } catch (IOException e) {
             if (running) {
                 log.error("Client error: {}", e.getMessage());
@@ -189,7 +226,7 @@ public class MiniDbServer {
         }
     }
 
-   private String buildInfo() throws IOException {
+    private String buildInfo() throws IOException {
         long uptimeSeconds =
                 (System.currentTimeMillis() - startTimeMillis) / 1000;
 
@@ -373,13 +410,26 @@ public class MiniDbServer {
     public synchronized void stop() {
         running = false;
 
-        if (serverSocket != null && !serverSocket.isClosed()) {
+        ServerSocket socket = serverSocket;
+
+        if (socket != null && !socket.isClosed()) {
             try {
-                serverSocket.close();
+                socket.close();
                 log.info("Server socket closed");
             } catch (IOException e) {
                 log.warn("Error stopping server: {}", e.getMessage());
             }
+        }
+
+        clientPool.shutdown();
+
+        try {
+            if (!clientPool.awaitTermination(5, TimeUnit.SECONDS)) {
+                clientPool.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            clientPool.shutdownNow();
+            Thread.currentThread().interrupt();
         }
     }
 
